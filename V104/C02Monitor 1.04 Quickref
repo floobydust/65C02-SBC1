@@ -1,0 +1,226 @@
+
+ C02Monitor 1.04 Quick Reference
+ Current Version: 1.04
+ Current I/O configured at page $FE (ROM is 32KB less 256 bytes)
+ Last update: 12/31/2018
+
+ C02Monitor 1.04 is a Small monitor program for the 65C02 (only) microprocessor
+  - Source code is written for use with WDC Tools
+  - Only tested to assemble and link with WDC Tools
+  - S19 Record support based on linker output from WDC Tools
+
+ Default serial port settings:
+ BAUD rate: 19.2k
+ Parity: None
+ Data bits: 8
+ Stop bits: 1
+ Handshaking: RTS/CTS, (five-wire RS-232 interface)
+
+ Code written and copyrighted (c) 2013 - 2018 by Kevin E. Maier
+
+Features for version 1.04 release:
+ - Uses CO2BIOS 1.4 for all I/O, basic setup and timer support
+ - JMP table (located at page $FF - 40 total entries, 120 bytes starting with $FF00)
+ 	- 16 Entries at the top of JMP table for C02Bios
+ 	- 8 Entries in the middle reserved for future expansion
+ 	- 16 Entries at bottom of JMP table for C02Monitor
+ - 65C02 optimization (will only run on 65C02 processors - tested only with WDC so far)
+ - EEPROM Byte write utility (Atmel Byte Write mode)
+ 	- Support Byte Write mode only, works insitu
+ 	- No address range checking, ensure you know what you're doing!
+ - Xmodem download capability which can be used from terminal program without cable swap
+  - Tested with ExtraPutty only
+  - uses CRC-16 checking only, no fallback to checksum
+  - CRC-16 routine is done in realtime for each received frame
+  - defaults to load address of $0800, limited to available RAM (30KB)
+  - user entered load address optional
+  - automagically senses Motorola S-Record format and loads into memory
+  - uses load address in the S-record or adds user entered (positive) offset
+  - only supports S19 formats created by WDC Linker (only tested with WDC Tools output)
+ - Added Text entry command
+ - Removed second confirm prompt for Program EEPROM
+ - Modify/Extend JMP table for Monitor functions
+ - Full Disassembler supporting WDC Mnemonics and addressing modes
+ 
+ - C02BIOS has been implemented to support 65C51 and 65C22
+ - BIOS is loaded in the upper 1KB with Hardware I/O page ($FE)
+ - all interrupt and monitor entry routines are soft-vectored at $0300
+ - hardware configuration data is soft loaded at $0320
+ - Panic routine entered via NMI hardware trigger. Saves CPU regs, $0000-$03FF and I/O page to $0400-$07FF
+ - NMI/BRK/IRQ routines are soft-vectored with available inserts for user-code extensions
+ - full-duplex IRQ-driven and buffered I/O for 65C51 implemented
+ - circular head/tail buffers (128 bytes each) implemented for RCV/XMT
+ - 65C22 timer 1 provides realtime clock with 4ms resolution: ticks, secs, mins, hours, and days
+ - 65C22 timer 2 provides a 1ms delay with scaling to over 49 days for accurate/consistent delays
+ - either timer interrupt routine return can be extended for adding background/refresh tasks
+ - recommendation is to keep BIOS in the upper 1KB and lower usage within the first 1KB:
+ 	 (page zero, cpu stack, console I/O buffer, vectors/config data)
+ - BIOS message before jumping to Monitor coldstart - shows configured CPU speed and BIOS version
+ - 65C51 is minimum requirement for console. 65C22 required for all timer and port functions
+ - BIOS update to version 1.1 allows a null to be received into buffer for Xmodem transfer
+ - BIOS update to version 1.2 restructures BIOS, frees up 12 bytes in BIOS page $FD
+ - BIOS update to version 1.3 provides better timing accuracy and utilizes additional CMOS only opcodes
+ - Reserved RAM area from $0400 - $07FF
+ - Page $00 RAM usage = $B0 - $FF
+
+ - Initialization routine contained in page $FF:
+	 - Page 0 cleared during coldstart
+	 - setup stack pointer
+	 - page $03 loaded with vector/config data
+	 - 65C51/65C22 initialization completed
+	 - Monitor invoked via coldstart vector
+	 - BRK routine cleans up and re-enters Monitor via warmstart vector
+
+ 	- EEPROM programming support
+ 		- Supports BYTE write mode only and uses Toggle bit to validate write completion
+ 		- Uses Page zero to hold the BYTE write and Toggle test routine
+ 		- Compares Source/Target to validate successful EEPROM programming
+ 		- Target and Source addresses are not checked! Be careful as you can overwrite the entire chip!
+ 		- Due to write timing completion of the Atmel chips (3ms - 10ms) RTC might lose time during programming
+
+ ROM Space used:
+ $E000 - $EFFF - C02Monitor
+ $F000 - $F7FF - Reserved for Monitor expansion
+ $F800 - $F9FF - BIOS
+ $FA00 - $FDFF - Reserved for BIOS expansion
+ $FF00 - $FFFF - BIOS
+
+ Default I/O:
+ $FE00 - $FEFF
+
+ Open ROM space:
+ $8000 - $EFFF (24KB)
+
+ RAM used by C02Monitor 1.04:
+
+ System variables ZERO-PAGE usage:
+ $0000 - $00AF User page zero space
+ $00B0 - $00DF Monitor page zero usage
+ $00E0 - $00FF BIOS page zero usage
+ $0100 - $01CF User STACK
+ $01D0 - $01FF BIOS/Monitor STACK
+ $0200 - $027F Console Receive buffer handled via IRQ service routine. (console input data here - keystrokes)
+ $0280 - $02FF Console Transmit buffer handled via IRQ service routine. (console output data here)
+ $0300 - $033F Vector/Config tables for NMI/BRK/IRQ/MON service routines and HW config - can be changed via user code
+ $0340 - $034F Search Buffer for Text/Hex string
+ $0350 - $037B Work Buffer for Motorola S19 processing
+ $037C - $03FF Frame buffer for Xmodem download routine
+ $0400 - $07FF Reserved for additional buffering for new device support, used by Panic routine
+
+ Minimum available user RAM:
+
+ ZERO-PAGE:
+ $0000 - $00AF
+
+ APPLICATION:
+ $0800 - $7FFF (31744 bytes, assuming RAM is 32768 bytes total)
+
+ Available ROM space:
+ $8000 - $DFFF - 24KB
+
+*********************************************************************************************************
+
+ C02Monitor 1.04 monitor commands:
+ 	- NOTES:
+ 	- A prompting Monitor - each field entry is completed with the "return" key vs a "space"
+ 	- All numeric value entries are validated during entry
+ 	- All numeric entries are in hex (field starts with a $ for prompting)
+ 	- Certain commands are prompted to continue (Zero RAM, Restart, Memory operations that perform a write)
+
+ A = {ACCUMULATOR} Examine/Edit the ACCUMULATOR preset/result register's contents
+ C = {COMPARE} Compare source to target address for a desired length, shows addresses that don't compare
+ D = {DUMP} Examine (in Hex/Ascii) the contents of 256 consecutive memory locations
+ E = {EXAMINE} Examine/Edit a memory location's contents
+ F = {FILL} Fill consecutive memory locations with a specified value
+ G = {GO} Begin program execution at a specified memory location
+ H = {LOCATE BYTE STRING} Search memory for a specified byte string (16 bytes max)
+ M = {MOVE} Copy a specified memory range to another memory location
+ P = {PROCESSOR} Examine/Edit the PROCESSOR STATUS preset/result register's contents
+ R = {REGISTERS} Examine the contents of ALL preset/result registers and Program Counter
+ S = {STACK POINTER} Examine/Edit the STACK POINTER preset/result register's contents
+ T = {LOCATE TEXT STRING} Search memory for a specified text string (16 characters max)
+ X = {X REGISTER} Examine/Edit the X REGISTER preset/result register's contents
+ Y = {Y REGISTER} Examine/Edit the Y REGISTER preset/result register's contents
+ Z = {TEXT} Enter ASCII test into memory at a specified location
+ [BREAK] = {BREAK} Interrupt any current task then return control to CO2Monitor
+ [,] = {COMMA} Sets the Delay variables: MSDELAY and DELLO/DELHI (8-bit/16-bit)
+ [.] = {PERIOD} Performs a 1 millisecond delay times variable MSDELAY (1-256ms)
+ [/] = {SLASH} Performs the above delay the number of times in DELLO/DELHI (1-65536 times)
+ [\] = {BACKSLASH] Performs the above delay by 1-256 times
+ [(] = {NEW MACRO} Start new keystroke macro - limited to 127 bytes
+ [)] = {RUN MACRO} Run keystroke macro (last byte of 128 byte input buffer)
+ [ESC]  = {ESCAPE} Terminate/exit command function
+ [CNTL-B] = Enhanced Basic - starts Enhanced Basic
+ [CNTL-D] = Disassembler - Enter start address, disassembles 22 lines per cycle plus single step
+ [CNTL-L] = Xmodem transfer - Uses Xmodem-CRC for download from termimal to memory (default $0800)
+ [CNTL-P] = Program EEPROM - note: source/target addresses not checked - be careful!
+ [CNTL-Q] = Query Monitor Command list with syntax
+ [CNTL-R] = {RESET} Restart C02Monitor
+ [CNTL-T] = Display System Uptime since Boot/Reset
+ [CNTL-V] = Display Monitor/BIOS Version
+ [CNTL-Z] = Zero all RAM and restart C02Monitor
+
+*********************************************************************************************************
+	JMP table entries:
+	- BIOS routines are from the top down
+	- Monitor routines are from the bottom up
+
+Monitor Routines:
+	The following 16 function are provided by Monitor and available via JMP table:
+	$FF00 RDLINE		Readline from consle
+	$FF03	RDCHAR		Read character, convert to upper case
+	$FF06 HEXIN2		Get up to 2 HEX digits from console
+	$FF09 HEXIN4		Get up to 4 Hex digits from console
+	$FF0C HEX2ASC		Convert 16-bit Hex to Ascii characters
+	$FF0F BIN2ASC		Convert Byte to two ASCII Hex characters
+	$FF12 ASC2BIN		Convert two Ascii characters to one Hex byte
+	$FF15 DOLLAR		Prints a $ sign
+	$FF18 PRBYTE		Prints a Byte value
+	$FF1B PRWORD		Prints a Word value
+	$FF1E PRASC			Prints a valid ASCII character
+	$FF21 PROMPT		Prints a message by MSG number
+	$FF24	PROMPTR		Prints a message via register offsets
+	$FF27	CONTINUE	Prompt to continue
+	$FF2A	CROUT			Prints CR/LF
+	$FF2D	SPC				Prints "space"
+	$FF30 UPTIME		Print time since startup
+
+BIOS Routines:
+	The following 16 functions are provided by BIOS and available via JMP table:
+	$FF48 CHRIN+NW	(character input from console. no waiting)
+	$FF4B CHRIN			(character input from console)
+	$FF4E CHROUT		(character output to console)
+	$FF51 SETDLY		(set delay value for milliseconds and 16-bit counter)
+	$FF54 MSDELAY		(execute millisecond delay 1-256 milliseconds)
+	$FF57 LGDELAY		(execute long delay; millisecond delay * 16-bit count)
+	$FF5A XLDELAY		(execute extra long delay; long delay * 8-bit count)
+	$FF5D SETPORT		(set VIA port A or B for input or output)
+	$FF60 RDPORT		(read from VIA port A or B)
+	$FF63 WRPORT		(write to VIA port A or B)
+	$FF66 INITVEC		(initialize soft vectors at $0300 from ROM $FDC0)
+	$FF69 INITCFG		(initialize soft config values at $0320 from ROM $FDE0)
+	$FF6C INITCON		(initialize 6551 console 19.2K, 8-N-1 RTS/CTS)
+	$FF6F INITVIA		(initialize 6522 default port, timers and interrupts)
+	$FF72 MONWARM		(warm start Monitor - jumps to page $03)
+	$FF75 MONCOLD		(cold start Monitor - jumps to page $03)
+
+C02Monitor 1.04 vectors/config data:
+
+Soft Vector table below
+- Seeded upon INITVEC call to point to ROM-based handler and returns.
+- Allows NMI/BRK/IRQ service routines to be replaced or;
+- add new routines pre- or post- the ROM based routine
+- Allows ROM based Monitor to be replaced
+
+$0300 NMIVEC   {NMI VECTOR} ROM routine that handles NMI request JMPs to here
+$0302 BRKVEC   {BRK VECTOR} ROM routine that handles BRK instruction JMPs to here
+$0304 IRQVEC   {IRQ VECTOR} ROM routine that handles IRQ requests JMPs to here
+$0306 NMIRTVEC {NMI return VECTOR} ROM routine uses this vector for return from NMI
+$0308 BRKRTVEC {BRK return VECTOR} ROM routine uses this vector for return from BRK
+$030A IRQRTVEC {IRQ return VECTOR} ROM routine uses this vector for return from IRQ
+$030C COLDSTRT {Monitor Cold start VECTOR} ROM routine uses this vector to cold start Monitor
+$030E WARMSTRT {Monitor Warm start VECTOR} ROM routine uses this vector to warm start Monitor
+$0310 IRQInsert 65C22 Timer 1 for RTC
+$0312 IRQInsert 65C22 Timer 2 for delay
+
+********************************************************************************************************

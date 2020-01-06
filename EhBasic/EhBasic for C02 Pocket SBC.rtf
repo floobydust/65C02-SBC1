@@ -1,0 +1,36 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1561\cocoasubrtf600
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\margl1440\margr1440\vieww10800\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 Enhanced Basic:\
+\
+- changes for C02 Pocket SBC\
+\
+- dated: 23rd July 2018\
+\
+The C02 Pocket SBC uses both the NMI and IRQ lines to support the C02BIOS code. All UART functions are interrupt-driven, which include:\
+- Transmit\
+- Receive\
+- Timer\
+- Break\
+\
+ The NMI is used for a Panic routine as well which saves CPU state, copies pertinent pages for debug and reset the UART and associated pointers in Page Zero and enters the C02Monitor via the warm start vector.\
+\
+ Based on information provided by Klaus, the interrupt structure in EhBasic is broken. Rather than attempt to utilize these functions, the decision has been made to remove them and save the ROM space. This includes removal of the code and the following Basic Functions:\
+- IRQ\
+- RETIRQ\
+- NMI\
+- RETNMI\
+- OFF\
+\
+ Other changes include the addition of an EXIT function, which simply invokes the C02Monitor via the Warm start entry in the Jump Table. Additional code changes include locating the CHRGET/CHRGOT routine in ROM with a 16-bit pointer in Page Zero. This saves significant space in Page Zero and also uses a CMOS address mode.\
+\
+ The main code has gone through an initial scan with many changes to leverage many of the new CMOS opcodes and address modes, specifically for Stack use, i.e., PHX, PLX, PHY, PLY and address mode LDA (dp), instead of LDA (dp),Y.  The BIT instruction has been used a fair amount to bypass other instructions. These have been replaced with \'93BRA target\'94 which, while adding one byte to the code, decreases execution by one clock cycle.\
+\
+ The final changes have been focused on Page Zero definitions. All Page Zero usage starts at $00 and goes upward. There are no longer any \'93holes\'94 in the usage and all defines/equates are based on previous defines/equates, so changing the initial base pointer allows a quick change of all pointers.\
+\
+ The entire source has been based on Klaus\'92 latest code release, Ver 2.22p4, with all changes inline. It is also modified to assemble and link with WDC Tools with a start address of $B000. All initialization code and vector data is now in the single BASIC.ASM source file. The C02Monitor has been updated to include a Ctrl-B to invoke EhBasic prompting for Cold or Warm start.\
+}
